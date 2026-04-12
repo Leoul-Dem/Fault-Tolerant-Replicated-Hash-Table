@@ -1,0 +1,43 @@
+[T=1s] 1931 ops/s
+[T=2s] 1395 ops/s
+[T=3s] 1451 ops/s
+[T=4s] 1426 ops/s
+[T=5s] 1334 ops/s
+[T=6s] 1935 ops/s
+[T=7s] 1726 ops/s
+[T=8s] 1649 ops/s
+[T=9s] 1555 ops/s
+[T=10s] 1308 ops/s
+[T=11s] 3631 ops/s
+[T=12s] 2829 ops/s
+[T=13s] 2703 ops/s
+[T=14s] 2225 ops/s
+[T=15s] 2934 ops/s
+[T=16s] 2561 ops/s
+[T=17s] 2206 ops/s
+[T=18s] 1879 ops/s
+[T=19s] 2917 ops/s
+[T=20s] 2993 ops/s
+[T=21s] 4400 ops/s
+[T=22s] 4040 ops/s
+[T=23s] 4220 ops/s
+[T=24s] 4685 ops/s
+[T=25s] 4244 ops/s
+[T=26s] 4826 ops/s
+[T=27s] 4758 ops/s
+[T=28s] 4993 ops/s
+[T=29s] 4272 ops/s
+[T=30s] 2820 ops/s
+
+=== Performance Stats ===
+Elapsed:          30.00 s
+Successful ops:   85876
+Throughput:       2862.16 ops/s
+Total operations: 120060
+Avg latency:      983.28 us
+P50 latency:      19.43 us
+P90 latency:      1412.26 us
+P99 latency:      19290.58 us
+Min latency:      0.06 us
+Max latency:      196156.46 us
+=========================
