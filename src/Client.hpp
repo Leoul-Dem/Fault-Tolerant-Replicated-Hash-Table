@@ -15,7 +15,7 @@ inline int runClient(moodycamel::ConcurrentQueue<Request_Cut> &req_queue,
     std::atomic<uint32_t> idx = 0;
     gtl::parallel_flat_hash_map_m<uint32_t, Op> map;
 
-    static constexpr size_t MAX_INFLIGHT = 256;
+    static constexpr size_t MAX_INFLIGHT = 2048;
 
     auto request = [&](){
         while(running.load()){
