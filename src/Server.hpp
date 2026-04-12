@@ -20,6 +20,8 @@ inline int runServer(const int port, const int argc, const char** argv,
 
     // Metrics
     std::atomic<uint64_t> successful_ops{0};
+    std::atomic<uint64_t> latency_sum_us{0};
+    std::atomic<uint64_t> latency_count{0};
     std::mutex latency_mtx;
     std::vector<double> latencies_us;
 
@@ -81,15 +83,18 @@ inline int runServer(const int port, const int argc, const char** argv,
             double us = std::chrono::duration<double, std::micro>(op_end - op_start).count();
             local_latencies.push_back(us);
 
-            if(success)
+            if(success) {
                 successful_ops.fetch_add(1, std::memory_order_relaxed);
+                latency_sum_us.fetch_add(static_cast<uint64_t>(us), std::memory_order_relaxed);
+                latency_count.fetch_add(1, std::memory_order_relaxed);
+            }
         }
 
         std::lock_guard<std::mutex> lock(latency_mtx);
         latencies_us.insert(latencies_us.end(), local_latencies.begin(), local_latencies.end());
     };
 
-    constexpr int NUM_WORKERS = 4;
+    constexpr int NUM_WORKERS = 8;
     std::vector<std::thread> workers;
     workers.reserve(NUM_WORKERS);
     for (int i = 0; i < NUM_WORKERS; i++)
@@ -97,8 +102,10 @@ inline int runServer(const int port, const int argc, const char** argv,
 
     std::thread recv_thread(&Node::recv_request, &node);
 
-    // Per-second throughput reporter
+    // Per-second throughput + latency reporter
     uint64_t prev_ops = 0;
+    uint64_t prev_lat_sum = 0;
+    uint64_t prev_lat_cnt = 0;
     auto prev_tick = std::chrono::steady_clock::now();
     int elapsed_sec = 0;
     while(running.load()) {
@@ -107,10 +114,18 @@ inline int runServer(const int port, const int argc, const char** argv,
         double dt = std::chrono::duration<double>(now - prev_tick).count();
         prev_tick = now;
         uint64_t cur = successful_ops.load(std::memory_order_relaxed);
-        uint64_t delta = cur - prev_ops;
+        uint64_t cur_lat_sum = latency_sum_us.load(std::memory_order_relaxed);
+        uint64_t cur_lat_cnt = latency_count.load(std::memory_order_relaxed);
+        uint64_t delta_ops = cur - prev_ops;
+        uint64_t delta_lat_sum = cur_lat_sum - prev_lat_sum;
+        uint64_t delta_lat_cnt = cur_lat_cnt - prev_lat_cnt;
         prev_ops = cur;
+        prev_lat_sum = cur_lat_sum;
+        prev_lat_cnt = cur_lat_cnt;
         elapsed_sec++;
-        std::fprintf(stdout, "[T=%ds] %lu ops/s\n", elapsed_sec, static_cast<unsigned long>(delta / dt));
+        double avg_lat = delta_lat_cnt > 0 ? static_cast<double>(delta_lat_sum) / delta_lat_cnt : 0.0;
+        std::fprintf(stdout, "[T=%ds] %lu ops/s %.0f us\n", elapsed_sec,
+                     static_cast<unsigned long>(delta_ops / dt), avg_lat);
     }
 
     node.stop();

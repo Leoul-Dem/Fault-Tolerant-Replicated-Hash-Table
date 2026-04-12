@@ -75,8 +75,8 @@ inline int runClient(moodycamel::ConcurrentQueue<Request_Cut> &req_queue,
         }
     };
 
-    constexpr int N_REQ = 2;
-    constexpr int N_VER = 2;
+    constexpr int N_REQ = 4;
+    constexpr int N_VER = 4;
     std::vector<std::thread> req_threads, ver_threads;
     for (int i = 0; i < N_REQ; i++)
         req_threads.emplace_back(request);

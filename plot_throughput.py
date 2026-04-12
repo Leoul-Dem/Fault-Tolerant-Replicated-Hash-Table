@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot per-second throughput from local_run_logs/node_*.log files."""
+"""Plot per-second throughput and latency from local_run_logs/node_*.log files."""
 
 import re
 import sys
@@ -10,13 +10,23 @@ import matplotlib.pyplot as plt
 LOG_DIR = Path(__file__).resolve().parent / "local_run_logs"
 
 
-def parse_node_log(path: Path) -> dict[int, int]:
-    data = {}
+def parse_node_log(path: Path) -> tuple[dict[int, int], dict[int, float]]:
+    """Returns (throughput_dict, latency_dict) keyed by time in seconds."""
+    throughput = {}
+    latency = {}
     for line in path.read_text().splitlines():
+        m = re.match(r"\[T=(\d+)s\]\s+(\d+)\s+ops/s\s+([\d.]+)\s+us", line)
+        if m:
+            t = int(m.group(1))
+            throughput[t] = int(m.group(2))
+            latency[t] = float(m.group(3))
+            continue
+        # Fallback: old format without latency
         m = re.match(r"\[T=(\d+)s\]\s+(\d+)\s+ops/s", line)
         if m:
-            data[int(m.group(1))] = int(m.group(2))
-    return data
+            t = int(m.group(1))
+            throughput[t] = int(m.group(2))
+    return throughput, latency
 
 
 def main():
@@ -25,75 +35,94 @@ def main():
         print("No log files found in", LOG_DIR, file=sys.stderr)
         return 1
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    # Detect killed node (the one with fewest data points)
-    all_series = {}
+    all_tp = {}
+    all_lat = {}
     for lf in logs:
         idx = int(re.search(r"(\d+)", lf.stem).group())
-        all_series[idx] = parse_node_log(lf)
+        tp, lat = parse_node_log(lf)
+        all_tp[idx] = tp
+        all_lat[idx] = lat
 
-    max_t = max(max(d.keys(), default=0) for d in all_series.values())
-    min_len = min(len(d) for d in all_series.values())
-    max_len = max(len(d) for d in all_series.values())
+    max_t = max(max(d.keys(), default=0) for d in all_tp.values())
+    max_len = max(len(d) for d in all_tp.values())
 
-    killed = {}  # idx -> kill_time
-    if min_len < max_len:
-        for idx, d in all_series.items():
-            if len(d) < max_len:
-                killed[idx] = max(d.keys()) + 1
+    killed = {}
+    threshold = int(max_len * 0.8)
+    for idx, d in all_tp.items():
+        if len(d) < threshold:
+            killed[idx] = max(d.keys()) + 1
 
-    # Aggregate throughput across all nodes
-    agg = {}
+    # Aggregate throughput
+    agg_tp = {}
     for t in range(1, max_t + 1):
-        total = sum(d.get(t, 0) for d in all_series.values())
-        agg[t] = total
+        agg_tp[t] = sum(d.get(t, 0) for d in all_tp.values())
 
-    # Compute y-axis cap: use 95th percentile of aggregate * 1.5 to clip outlier spikes
-    agg_vals = sorted(agg.values())
+    # Weighted average latency (weight by ops/s so high-throughput nodes count more)
+    agg_lat = {}
+    has_latency = any(len(d) > 0 for d in all_lat.values())
+    if has_latency:
+        for t in range(1, max_t + 1):
+            total_ops = 0
+            weighted_sum = 0.0
+            for idx in all_tp:
+                ops = all_tp[idx].get(t, 0)
+                lat = all_lat[idx].get(t, 0.0)
+                if ops > 0 and lat > 0:
+                    weighted_sum += ops * lat
+                    total_ops += ops
+            agg_lat[t] = weighted_sum / total_ops if total_ops > 0 else 0.0
+
+    n_nodes = len(all_tp)
+    suffix = ""
+    if killed:
+        suffix = f" ({len(killed)} node{'s' if len(killed) > 1 else ''} killed mid-run)"
+
+    # --- Throughput plot ---
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ts = sorted(agg_tp.keys())
+    ax.plot(ts, [agg_tp[t] for t in ts], color="black", linewidth=2.5, label="Aggregate Throughput")
+
+    agg_vals = sorted(agg_tp.values())
     if agg_vals:
         p95 = agg_vals[int(len(agg_vals) * 0.95)]
-        y_cap = max(p95 * 1.5, 100)
-    else:
-        y_cap = None
+        ax.set_ylim(0, max(p95 * 1.5, 100))
 
-    # Plot individual nodes
-    for idx in sorted(all_series):
-        d = all_series[idx]
-        ts = sorted(d.keys())
-        label = f"Node {idx}"
-        if idx in killed:
-            label += " (killed)"
-        ax.plot(ts, [d[t] for t in ts], marker=".", markersize=4, linewidth=1, alpha=0.7, label=label)
-
-    # Plot aggregate
-    ts_agg = sorted(agg.keys())
-    ax.plot(ts_agg, [agg[t] for t in ts_agg], color="black", linewidth=2.5, linestyle="--", label="Aggregate")
-
-    # Mark kill events
-    kill_colors = ["red", "darkred", "orangered", "crimson"]
-    for i, (idx, kt) in enumerate(sorted(killed.items())):
-        c = kill_colors[i % len(kill_colors)]
-        ax.axvline(x=kt, color=c, linewidth=2, linestyle=":", label=f"Node {idx} killed (T={kt}s)")
-
-    n_nodes = len(all_series)
-    title = f"Per-Second Throughput — {n_nodes}-Node Cluster"
-    if killed:
-        title += f" ({len(killed)} node{'s' if len(killed) > 1 else ''} killed mid-run)"
     ax.set_xlabel("Time (s)", fontsize=12)
     ax.set_ylabel("Throughput (ops/s)", fontsize=12)
-    ax.set_title(title, fontsize=14)
+    ax.set_title(f"Aggregate Throughput — {n_nodes}-Node Cluster{suffix}", fontsize=14)
     ax.legend(loc="upper right", fontsize=9)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(1, max_t)
-    if y_cap is not None:
-        ax.set_ylim(0, y_cap)
-
-    out = LOG_DIR.parent / "throughput_plot.png"
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
-    print(f"Saved: {out}")
+    out_tp = LOG_DIR.parent / "throughput_plot.png"
+    fig.savefig(out_tp, dpi=150)
+    print(f"Saved: {out_tp}")
     plt.close(fig)
+
+    # --- Latency plot ---
+    if has_latency and agg_lat:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ts_lat = sorted(t for t in agg_lat if agg_lat[t] > 0)
+        vals = [agg_lat[t] for t in ts_lat]
+        ax.plot(ts_lat, vals, color="black", linewidth=2.5, label="Avg Latency")
+
+        lat_sorted = sorted(vals)
+        if lat_sorted:
+            p95 = lat_sorted[int(len(lat_sorted) * 0.95)]
+            ax.set_ylim(0, max(p95 * 1.5, 10))
+
+        ax.set_xlabel("Time (s)", fontsize=12)
+        ax.set_ylabel("Latency (us)", fontsize=12)
+        ax.set_title(f"Average Latency — {n_nodes}-Node Cluster{suffix}", fontsize=14)
+        ax.legend(loc="upper right", fontsize=9)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(1, max_t)
+        fig.tight_layout()
+        out_lat = LOG_DIR.parent / "latency_plot.png"
+        fig.savefig(out_lat, dpi=150)
+        print(f"Saved: {out_lat}")
+        plt.close(fig)
+
     return 0
 
 

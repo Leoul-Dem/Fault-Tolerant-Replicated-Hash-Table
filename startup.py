@@ -22,8 +22,8 @@ import time
 # ─── Configuration ───────────────────────────────────────────────────────────
 SSH_USER = "lgd226"
 DOMAIN = "cse.lehigh.edu"
-PROGRAM_PATH = "~/temp/Replicated-Hash-Table-2/build/Replicated_Hash_Table"
-PROJECT_DIR = "~/temp/Replicated-Hash-Table-2"
+PROGRAM_PATH = "/home/lgd226/symmetrical-fishstick/build/Replicated_Hash_Table"
+PROJECT_DIR = "/home/lgd226/symmetrical-fishstick"
 PORT = 6007
 TMUX_SESSION = "rht"
 CSV_FILE = "results.csv"
@@ -236,6 +236,29 @@ def collect_results(machines: list[str]) -> dict:
     return stats
 
 
+def download_logs(machines: list[str]):
+    """SCP output files from remote machines into local_run_logs/ for plotting."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    log_dir = os.path.join(script_dir, "local_run_logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    print(f"\nDownloading logs to {log_dir}/ ...")
+    for idx, machine in enumerate(machines):
+        remote_path = f"{ssh_host(machine)}:{PROJECT_DIR}/output{idx}.txt"
+        local_path = os.path.join(log_dir, f"node_{idx}.log")
+        try:
+            subprocess.run(
+                ["scp", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no",
+                 remote_path, local_path],
+                capture_output=True, timeout=15,
+            )
+            print(f"  node {idx} ({machine}) -> {local_path}")
+        except (subprocess.TimeoutExpired, Exception) as e:
+            print(f"  node {idx} ({machine}) FAILED: {e}")
+
+    print(f"\nRun 'python3 plot_throughput.py' to generate the graph.")
+
+
 def write_per_second_csv(per_second: dict[int, dict[int, int]],
                          machines: list[str], path: str):
     if not per_second:
@@ -266,7 +289,7 @@ def write_per_second_csv(per_second: dict[int, dict[int, int]],
 
 def run_trial(num_nodes: int, duration: int,
               kill_nodes: list[int] | None = None,
-              kill_times: list[int] | None = None) -> dict:
+              kill_times: list[int] | None = None) -> tuple[dict, list[str]]:
     print("\n" + "#" * 60)
     print(f"  TRIAL: {num_nodes} nodes, {duration}s")
     if kill_nodes and kill_times:
@@ -277,7 +300,7 @@ def run_trial(num_nodes: int, duration: int,
     chosen, ips = select_and_resolve(num_nodes)
     if not chosen:
         print(f"  SKIPPED: not enough machines for {num_nodes} nodes")
-        return {}
+        return {}, []
 
     launch_tmux(chosen, ips)
 
@@ -314,7 +337,9 @@ def run_trial(num_nodes: int, duration: int,
     subprocess.run(["tmux", "kill-session", "-t", TMUX_SESSION], capture_output=True)
     print(f"\nTmux session '{TMUX_SESSION}' cleaned up.")
 
-    return stats
+    download_logs(chosen)
+
+    return stats, chosen
 
 
 def main():
@@ -341,7 +366,7 @@ def main():
                 "avg_latency_us", "avg_p50_latency_us", "avg_p99_latency_us",
             ])
             for n in node_counts:
-                stats = run_trial(n, args.duration)
+                stats, _ = run_trial(n, args.duration)
                 if stats and "total_throughput" in stats:
                     writer.writerow([
                         n,

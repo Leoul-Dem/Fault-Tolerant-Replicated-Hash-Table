@@ -46,7 +46,7 @@ private:
     std::vector<std::array<std::mutex, CONNS_PER_PEER>> conn_mtx;
     std::vector<std::atomic<uint32_t>> conn_rr;
 
-    static constexpr int RAFT_CONNS_PER_PEER = 4;
+    static constexpr int RAFT_CONNS_PER_PEER = 8;
     std::vector<std::array<std::unique_ptr<asio::ip::tcp::socket>, RAFT_CONNS_PER_PEER>> raft_conns;
     std::vector<std::array<std::mutex, RAFT_CONNS_PER_PEER>> raft_conn_mtx;
     std::vector<std::atomic<uint32_t>> raft_conn_rr;
