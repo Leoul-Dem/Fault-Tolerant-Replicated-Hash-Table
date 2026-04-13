@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++  -O3 -pthread -O3 -DNDEBUG  -static -Wl,--dependency-file=CMakeFiles/Replicated_Hash_Table.dir/link.d CMakeFiles/Replicated_Hash_Table.dir/src/Node.cpp.o CMakeFiles/Replicated_Hash_Table.dir/src/RaftEngine.cpp.o CMakeFiles/Replicated_Hash_Table.dir/src/main.cpp.o -o Replicated_Hash_Table  -lpthread

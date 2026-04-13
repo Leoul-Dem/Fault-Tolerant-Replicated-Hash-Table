@@ -13,7 +13,7 @@ include_directories(libs/networking)
 
 add_executable(Replicated_Hash_Table
         src/Node.cpp
-        src/RaftEngine.cpp
+        src/Raft.cpp
         src/main.cpp
 )
 
