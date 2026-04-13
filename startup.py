@@ -20,19 +20,16 @@ import sys
 import time
 
 # ─── Configuration ───────────────────────────────────────────────────────────
-SSH_USER = "lgd226"
-DOMAIN = "cse.lehigh.edu"
-PROGRAM_PATH = "/home/lgd226/symmetrical-fishstick/build/Replicated_Hash_Table"
-PROJECT_DIR = "/home/lgd226/symmetrical-fishstick"
-PORT = 6007
+SSH_USER = "<user>"
+DOMAIN = "<domain>"
+PROGRAM_PATH = "~/project/build/Replicated_Hash_Table"
+PROJECT_DIR = "~/project"
+PORT = 6009
 TMUX_SESSION = "rht"
 CSV_FILE = "results.csv"
 
 MACHINES = [
-    "ariel", "caliban", "callisto", "ceres", "chiron", "cupid",
-    "eris", "europa", "hydra", "iapetus", "io", "ixion",
-    "mars", "mercury", "neptune", "nereid", "nix", "orcus",
-    "phobos", "puck", "saturn", "triton", "varda", "vesta", "xena",
+    # Add hostnames here
 ]
 # ─────────────────────────────────────────────────────────────────────────────
 
