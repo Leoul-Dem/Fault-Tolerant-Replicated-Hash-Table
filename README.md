@@ -71,13 +71,13 @@ Produces `throughput_plot.png` and `latency_plot.png` from the logs in `local_ru
 
 ### Throughput
 
-![Throughput](throughput_plot.png)
+![Throughput](results/6_nodes_throughput.png)
 
 Aggregate throughput drops briefly at the kill event as affected Raft groups run elections (~150-350ms timeout), then recovers as new leaders are elected. No shard loses quorum since each has 3 members and only 1 is killed.
 
 ### Latency
 
-![Latency](latency_plot.png)
+![Latency](results/6_nodes_latency.png)
 
 Average latency spikes during the election window due to socket timeouts on dead connections, then stabilizes at a higher baseline (fewer nodes serving the same workload).
 
